@@ -15,7 +15,7 @@ MAC_AREA_INT8=282
 DEVELOP_MODE=False
 
 class GAMMA(object):
-    def __init__(self,dimension, map_cstr=None, num_pe=64, pe_limit=1024, fitness="latency", constraints=dict(), par_RS=False, l1_size=512, l2_size=108000, NocBW=81920000, offchipBW=81920000, slevel_min=2,slevel_max=2, fixedCluster=0, log_level=2,constraint_class=None,external_mem_cstr=None, use_factor=False,uni_base=True):
+    def __init__(self,dimension, map_cstr=None, num_pe=64, pe_limit=1024, fitness="latency", constraints=dict(), par_RS=False, l1_size=512, l2_size=108000, NocBW=81920000, offchipBW=81920000, slevel_min=2,slevel_max=2, fixedCluster=0, log_level=2,constraint_class=None,external_mem_cstr=None, use_factor=False, use_cim=False, subarray_size=-1, cim_stats_file=None, uni_base=True):
         super(GAMMA,self).__init__()
         self.dimension = dimension
         self.dimension_dict = {"K":dimension[0], "C":dimension[1], "Y":dimension[2], "X":dimension[3], "R":dimension[4],"S":dimension[5], "T":dimension[6]}
@@ -55,10 +55,29 @@ class GAMMA(object):
         self.constraint_class=constraint_class
         self.external_mem_cstr = external_mem_cstr
         self.use_factor = use_factor
+        self.use_cim = use_cim
+        self.subarray_size = subarray_size if subarray_size > 0 else 32
         self.uni_base = uni_base
         self.L1_bias_template = None
         self.area_pebuf_only=False
         self.external_area_model = False
+        self.activity_count = None
+        self.cim_stats_file = cim_stats_file
+        self.cim_stats = None
+
+        print("use_cim: ", self.use_cim)
+        if (self.cim_stats_file):
+            cim_file_path = os.path.join("../../data/circuit_stats/", self.cim_stats_file + ".txt")
+            if (self.use_cim):
+                file = open(cim_file_path, "r")
+                lst = file.read().splitlines()
+                self.circuit_stats = {}
+                for stat in lst:
+                    text = stat.split(": ", 1)[0]
+                    num = stat.split(": ", 1)[1]
+                    self.circuit_stats[text] = float(num)
+                print("subarray size: ", self.subarray_size)
+                print(self.cim_stats_file, self.circuit_stats)
 
     def reset_hw_parm(self, l1_size=None, l2_size=None, num_pe=None, NocBW=None, map_cstr=None, pe_limit=None,area_pebuf_only=None, external_area_model=None, offchipBW=None):
         if l1_size:
@@ -721,9 +740,9 @@ class GAMMA(object):
         return pop_inj, inj_fitness
 
     def run(self, dimension, stage_idx=0, prev_stage_value=0, num_population=100, num_generations=100, elite_ratio=0.05,
-                       parents_ratio=0.4, ratio_decay=1, num_finetune=1, best_sol_1st=None, init_pop=None, bias=None, uni_base=True, use_factor=False, use_pleteau=False, L1_bias_template=None):
+                       parents_ratio=0.4, ratio_decay=1, num_finetune=1, best_sol_1st=None, init_pop=None, bias=None, uni_base=True, use_factor=False, use_cim=False, subarray_size = -1, use_pleteau=False, L1_bias_template=None):
         self.init_arguement(dimension=dimension, stage_idx=stage_idx, prev_stage_value=prev_stage_value, num_population=num_population, num_generations=num_generations, elite_ratio=elite_ratio,
-                       parents_ratio=parents_ratio, ratio_decay=ratio_decay, num_finetune=num_finetune, best_sol_1st=best_sol_1st, init_pop=init_pop,uni_base=uni_base, use_factor=use_factor, use_pleteau=use_pleteau,L1_bias_template=L1_bias_template)
+                       parents_ratio=parents_ratio, ratio_decay=ratio_decay, num_finetune=num_finetune, best_sol_1st=best_sol_1st, init_pop=init_pop,uni_base=uni_base, use_factor=use_factor, use_cim=use_cim, subarray_size = subarray_size, use_pleteau=use_pleteau,L1_bias_template=L1_bias_template)
         pool = Pool(min(self.num_population + self.num_elite, cpu_count()))
         population = self.reinit_pop(pool,self.num_population,  self.stage_idx, self.best_sol_1st, self.init_pop, bias=bias)
         if self.map_cstr:
@@ -777,7 +796,7 @@ class GAMMA(object):
                     best_runtime, best_throughput, best_energy, best_area, best_l1_size, best_l2_size, best_mac, best_power, best_num_pe = self.get_indiv_info( chkpt["best_sol"])
                     # best_num_pe = chkpt["best_sol"][0][1] if self.num_pe<1 else self.num_pe
                     # print(f"Runtime: {best_runtime}, L1: {best_l1_size}, L2: {best_l2_size}, L1_usage:{best_l1_size/self.l1_size:}, L2_usage:{best_l2_size/self.l2_size:.4f}, PE: {best_num_pe}")
-                    print(f"Gen {g+1}: Reward: {chkpt['best_reward'][0]:.3e}, Runtime: {best_runtime}, Area: {best_area/1e6:.3f}mm2,  PE Area_ratio: {best_num_pe*MAC_AREA_INT8/best_area*100:.1f}%, L1: {best_l1_size}, L2: {best_l2_size},  PE: {best_num_pe}")
+                    print(f"Gen {g+1}: Reward: {chkpt['best_reward'][0]:.3e}, Runtime: {best_runtime}, Energy: {best_energy}, Area: {best_area/1e6:.3f}mm2,  PE Area_ratio: {best_num_pe*MAC_AREA_INT8/best_area*100:.1f}%, L1: {best_l1_size}, L2: {best_l2_size},  PE: {best_num_pe}")
                 else:
                     print(f"Gen {g+1}: Reward: {chkpt['best_reward'][0]:.3e}")
 
@@ -821,11 +840,11 @@ class GAMMA(object):
         return self.correctify_tile_dependency_thread(indv)
 
     def thread_fun(self, individual):
-        reward, activity_count = self.oberserve_maestro(individual)
+        reward, activity_count = self.observe_maestro(individual)
         return [reward, activity_count]
 
     def get_indiv_info(self, individual, num_pe=None, l1_size=None, l2_size=None, NocBW=None):
-        self.oberserve_maestro(individual,num_pe=num_pe, l1_size=l1_size, l2_size=l2_size, NocBW=NocBW)
+        self.observe_maestro(individual,num_pe=num_pe, l1_size=l1_size, l2_size=l2_size, NocBW=NocBW)
         return self.observation
 
     def get_CONVtypeShape(self, dimensions, CONVtype=1):
@@ -882,7 +901,7 @@ class GAMMA(object):
                 fo.write("}\n")
             fo.write("}")
 
-    def oberserve_maestro(self, indv, num_pe=None, l1_size=None, l2_size=None, NocBW=None, offchipBW=None):
+    def observe_maestro(self, indv, num_pe=None, l1_size=None, l2_size=None, NocBW=None, offchipBW=None):
 
         m_file = "{}".format(random.randint(0, 2**32))
         self.write_maestro(indv,m_file=m_file)
@@ -901,7 +920,7 @@ class GAMMA(object):
                    "--offchip_bw_cstr={}".format(self.offchipBW if not offchipBW else offchipBW),
                    "--noc_mc_support=true", "--num_pes={}".format(int(to_use_num_pe)),
                    "--num_simd_lanes=1", "--l1_size_cstr={}".format(self.l1_size if not l1_size else l1_size),
-                   "--l2_size_cstr={}".format(self.l2_size if not l2_size else l2_size), "--print_res=false", "--print_res_csv_file=true", "--print_log_file=false", "--print_design_space=false", "--msg_print_lv=0"]
+                   "--l2_size_cstr={}".format(self.l2_size if not l2_size else l2_size), "--print_res=false", "--print_res_csv_file=true", "--print_log_file=true", "--print_design_space=false", "--msg_print_lv=0"]
 
         process = Popen(command, stdout=PIPE, stderr=PIPE)
         stdout, stderr = process.communicate()
@@ -955,6 +974,7 @@ class GAMMA(object):
                 area = self.compute_area_maestro(to_use_num_pe, l1_size, l2_size)
 
             self.observation = [np.mean(x) for x in [runtime, throughput, energy, area, l1_size, l2_size, mac, power, to_use_num_pe]]
+            self.activity_count = activity_count
             def catch_exception():
                 if l1_size>self.l1_size or l2_size>self.l2_size or any(runtime_series<1) or any(l1_size_series<1) or any(l2_size_series<1):
                     return True
@@ -999,13 +1019,78 @@ class GAMMA(object):
     def judge(self):
         runtime, throughput, energy, area, l1_size, l2_size, mac, power, num_pe = self.observation
 
+        if (self.use_cim):
+            l1_wt_writes = self.activity_count["l1_weight_write"]
+            l1_input_writes = self.activity_count["l1_input_write"]
+            l1_output_writes = self.activity_count["l1_output_write"]
+            l1_wt_reads = self.activity_count["l1_weight_read"]
+            l1_input_reads = self.activity_count["l1_input_read"]
+            l1_output_reads = self.activity_count["l1_output_read"]
+            l2_wt_writes = self.activity_count["l2_weight_write"]
+            l2_input_writes = self.activity_count["l2_input_write"]
+            l2_output_writes = self.activity_count["l2_output_write"]
+            l2_wt_reads = self.activity_count["l2_weight_read"]
+            l2_input_reads = self.activity_count["l2_input_read"]
+            l2_output_reads = self.activity_count["l2_output_read"]
+            num_macs = self.activity_count["mac_activity"]
+
+            n = self.subarray_size
+            subarray_read_energy = self.circuit_stats["subarray_read_energy"]*1E-12*8
+            subarray_read_latency = self.circuit_stats["subarray_read_latency"]*8
+            subarray_write_energy = self.circuit_stats["subarray_write_energy"]*1E-12
+            subarray_write_latency = self.circuit_stats["subarray_write_latency"]
+            l1_read_energy_per_bit = self.circuit_stats["l1_read_energy_per_bit"]*1E-12
+            l1_write_energy_per_bit = self.circuit_stats["l1_write_energy_per_bit"]*1E-12
+            l2_read_energy_per_bit = self.circuit_stats["l2_read_energy_per_bit"]*1E-12
+            l2_write_energy_per_bit = self.circuit_stats["l2_write_energy_per_bit"]*1E-12
+        
+        # if (n == 32): # SRAM 22nm 32x32
+        #     subarray_read_energy = 2.24782E-12*8 #joules, for 8 CIM cycles
+        #     subarray_read_latency = 15.9566*8 #ns or cycles (assuming 1 cycle = 1ns)
+        #     subarray_write_energy = 27.648E-12
+        #     l1_rd_energy_per_bit = 1.44481E-12
+        #     l1_wr_energy_per_bit = 1.44481E-12
+        #     l2_rd_energy_per_bit = 3336.69E-12
+        #     l2_wr_energy_per_bit = 64807.8E-12
+        #     subarray_write_latency = 255.306
+        # elif (n == 64): # SRAM 22nm 64x64
+        #     subarray_read_energy = 3.54159E-12*8 #joules, for 8 CIM cycles
+        #     subarray_write_energy = 110.592E-12
+        #     l1_rd_energy_per_bit = 1.44481E-12
+        #     l1_wr_energy_per_bit = 1.44481E-12
+        #     l2_rd_energy_per_bit = 3336.69E-12
+        #     l2_wr_energy_per_bit = 64807.8E-12
+        #     subarray_read_latency = 14.3869*8 #ns or cycles (assuming 1 cycle = 1ns)
+        #     subarray_write_latency = 920.761
+        # else: # SRAM 22nm 64x64
+        #     subarray_read_energy = 11.9396E-12*8 #joules, for 8 CIM cycles
+        #     subarray_write_energy = 442.368E-12
+        #     l1_rd_energy_per_bit = 1.44481E-12
+        #     l1_wr_energy_per_bit = 1.44481E-12
+        #     l2_rd_energy_per_bit = 3336.69E-12
+        #     l2_wr_energy_per_bit = 64807.8E-12
+        #     subarray_read_latency = 13.5792*8 #ns or cycles (assuming 1 cycle = 1ns)
+        #     subarray_write_latency = 3476.29
+
+        # print("use_cim: ", use_cim, ", subarray_size: ", n)
+
         def get_objective(objective):
             values = []
             for term in objective:
                 if term[:1] == "n":
                     term = term[1:]
                 if term == "energy":
-                    reward = -energy
+                    if (self.use_cim):
+                        mac_energy = num_macs*subarray_read_energy
+                        # n inputs, n/8 outputs (because n/8 weights) per CIM cycle. 8 CIM cycles or 8 bits per input/output.
+                        l1_write_energy = l1_wt_writes*subarray_write_energy + (l1_input_writes*l1_write_energy_per_bit*n + l1_output_writes*l1_write_energy_per_bit*n/8)*8 
+                        l1_read_energy = (l1_input_reads*n + l1_output_reads*n/8)*l1_read_energy_per_bit*8                       
+                        l2_write_energy = (l2_wt_writes*n*n + l2_input_writes*n + l2_output_writes*n/8)*l2_write_energy_per_bit*8
+                        l2_read_energy = (l2_wt_reads*n*n + l2_input_reads*n + l2_output_reads*n/8)*l2_read_energy_per_bit*8
+                        cim_energy = mac_energy + l1_write_energy + l1_read_energy + l2_write_energy + l2_read_energy
+                        reward = -cim_energy
+                    else:
+                        reward = -energy
                 elif term == "thrpt_ave":
                     reward = throughput
                 elif term == "EDP":
@@ -1021,20 +1106,24 @@ class GAMMA(object):
                 elif term == "thrpt_btnk":
                     reward = throughput
                 elif term == "latency":
-                    reward = -runtime
+                    if (self.use_cim):
+                        cim_runtime = num_macs * subarray_read_latency + l1_wt_writes * subarray_write_latency
+                        reward = -cim_runtime
+                    else:
+                        reward = -runtime
                 elif term == "area":
                     reward = -area
                 elif term == "l1_size":
-                    reward = - l1_size
+                    reward = -l1_size
                 elif term == "l2_size":
                     reward = -l2_size
                 elif term == "power":
                     reward = -power
-                elif term =="ranking":
+                elif term == "ranking":
                     reward = -1
-                elif term =="L-PE-L2":
+                elif term == "L-PE-L2":
                     reward = -runtime * num_pe * l2_size
-                elif term =="L-PE":
+                elif term == "L-PE":
                     reward = -runtime * num_pe
                 elif term == "PE":
                     reward = -num_pe
@@ -1057,7 +1146,7 @@ class GAMMA(object):
 
     def init_arguement(self, dimension=None, stage_idx=0, prev_stage_value=0, num_population=100, num_generations=100,
                        elite_ratio=0.05,
-                       parents_ratio=0.15, ratio_decay=1, num_finetune=1, best_sol_1st=None, init_pop=None, uni_base=False, use_factor=False, use_pleteau=False,L1_bias_template=None):
+                       parents_ratio=0.15, ratio_decay=1, num_finetune=1, best_sol_1st=None, init_pop=None, uni_base=False, use_factor=False, use_cim=False, subarray_size=-1, use_pleteau=False,L1_bias_template=None):
         self.stage_idx = stage_idx
         self.num_generations = num_generations
         self.num_population = num_population
@@ -1076,6 +1165,8 @@ class GAMMA(object):
         self.stat = None
         self.pleteau_sol = dict()
         self.use_factor = use_factor
+        self.use_cim = use_cim
+        self.subarray_size = subarray_size
         self.use_pleteau = use_pleteau
         self.best_reward_pleteau = None
         self.best_sol_pleteau = None

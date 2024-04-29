@@ -62,22 +62,23 @@ def train_model(model_defs, input_arg, map_cstr=None, chkpt_file='./chkpt'):
     env = gamma.GAMMA(dimension=dimension, num_pe=opt.num_pe, fitness=fitness, par_RS=opt.parRS,
                       l1_size=opt.l1_size,
                       l2_size=opt.l2_size, NocBW=opt.NocBW, offchipBW=opt.offchipBW, slevel_min=opt.slevel_min, slevel_max=opt.slevel_max,
-                      fixedCluster=opt.fixedCluster, log_level=opt.log_level, map_cstr=map_cstr)
+                      fixedCluster=opt.fixedCluster, log_level=opt.log_level, map_cstr=map_cstr, use_cim=opt.use_cim, subarray_size=opt.subarray_size, cim_stats_file=opt.cim_stats_file)
     constraints = {"area":opt.area_budget* 1e6}
     for dimension in model_defs:
         env.reset_dimension(fitness=fitness, constraints=constraints, dimension=dimension)
         env.reset_hw_parm(num_pe=opt.num_pe, l1_size=opt.l1_size, l2_size=opt.l2_size, pe_limit=opt.pe_limit,area_pebuf_only=False, external_area_model=True)
         chkpt, pops = env.run(dimension, stage_idx=0, num_population=opt.num_pop, prev_stage_value=None,
                                   num_generations=opt.epochs,
-                                  best_sol_1st=None, init_pop=None, bias=None, uni_base=True, use_factor=opt.use_factor, use_pleteau=False)
+                                  best_sol_1st=None, init_pop=None, bias=None, uni_base=True, use_factor=opt.use_factor, use_cim=opt.use_cim, subarray_size=opt.subarray_size, use_pleteau=False)
         best_sol = chkpt["best_sol"]
         best_runtime, best_throughput, best_energy, best_area, best_l1_size, best_l2_size, best_mac, best_power, best_num_pe = env.get_indiv_info(best_sol, num_pe=None)
         print("Mapping:", chkpt["best_sol"])
-        print(f"Reward: {chkpt['best_reward'][0]:.3e}, Runtime: {best_runtime:.0f}(cycles), Area: {best_area/1e6:.3f}(mm2), PE Area_ratio: {best_num_pe*MAC_AREA_INT8/best_area*100:.1f}%, Num_PE: {best_num_pe:.0f}, L1 Buffer: {best_l1_size:.0f}(elements), L2 Buffer: {best_l2_size:.0f}(elements)")
+        print(f"Reward: {chkpt['best_reward'][0]:.3e}, Runtime: {best_runtime:.0f}(cycles), Energy: {best_energy}, Area: {best_area/1e6:.3f}(mm2), PE Area_ratio: {best_num_pe*MAC_AREA_INT8/best_area*100:.1f}%, Num_PE: {best_num_pe:.0f}, L1 Buffer: {best_l1_size:.0f}(elements), L2 Buffer: {best_l2_size:.0f}(elements)")
         chkpt = {
             "reward":chkpt['best_reward'][0],
-            "best_sol":best_sol,
-            "runtime":best_runtime,
+            "best_sol": best_sol,
+            "runtime": best_runtime,
+            "energy": best_energy,
             "area":best_area,
             "pe_area_ratio":best_num_pe*MAC_AREA_INT8/best_area,
             "PE":best_num_pe,
@@ -87,7 +88,7 @@ def train_model(model_defs, input_arg, map_cstr=None, chkpt_file='./chkpt'):
             "L1_size": best_l1_size,
             "L2_size": best_l2_size
         }
-        columns = ["runtime", "area", "pe_area_ratio", "PE", "L1_size", "L2_size", "PE_area", "L1_area", "L2_area","best_sol"]
+        columns = ["runtime", "energy", "area", "pe_area_ratio", "PE", "L1_size", "L2_size", "PE_area", "L1_area", "L2_area","best_sol"]
         np_array = np.array([chkpt[t] for t in columns[:-1]] + [f'{chkpt["best_sol"]}']).reshape(1, -1)
         df = pd.DataFrame(np_array, columns=columns)
         df.to_csv(chkpt_file[:-4]+".csv")

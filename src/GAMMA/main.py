@@ -27,6 +27,9 @@ if __name__ == "__main__":
     parser.add_argument('--area_budget', type=float, default=-1, help='The area budget (mm2). Set to -1 if no area upper-bound')
     parser.add_argument('--pe_limit', type=int, default=-1, help='Number of Processing Element budget. Set to -1 if no num_PE upper-bound')
     parser.add_argument('--use_factor',default=False, action='store_true', help='To only use factor as tile size.')
+    parser.add_argument('--use_cim', default=False, action='store_true', help='Assume each PE is a CIM subarray')
+    parser.add_argument('--subarray_size', type=int, default=-1, help='Dimension of CIM crossbar array in CIM mode')
+    parser.add_argument('--cim_stats_file', type=str, default=None, help='Circuit level stats from NeuroSim')
     opt = parser.parse_args()
     opt = set_hw_config(opt)
     if DEVELOP_MODE:
@@ -54,10 +57,14 @@ if __name__ == "__main__":
     outdir = opt.outdir
     outdir = os.path.join(history_path, outdir)
     cstr_name = get_cstr_name(mapping_cstr=opt.mapping_cstr)
+    # exp_name = f"GAMMA_{opt.model}{f'-Lay{opt.singlelayer}' if opt.singlelayer>0 else ''}{f'-nLay{opt.num_layer}' if opt.singlelayer<1 and opt.num_layer>0 else ''}_SL-{opt.slevel_min}-{opt.slevel_max}" \
+    #            f"{f'_FixCl-{opt.fixedCluster}' if opt.fixedCluster>0 else ''}_F1-{opt.fitness1}_GEN-{opt.epochs}_POP-{opt.num_pop}_Area-{opt.area_budget}_MaxPEs-{opt.pe_limit}" \
+    #            f"{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}{f'_L2Size-{opt.l2_size}' if opt.l2_size>0 else ''}" \
+    #            f"{f'_L1Size-{opt.l1_size}' if opt.l1_size>0 else ''}{'_factorOnly' if opt.use_factor else ''}{'_useCIM' if opt.use_cim else ''}{f'_SubarraySize-{opt.subarray_size}' if opt.subarray_size>0 else ''}{f'_CostModelCstr-{opt.costmodel_cstr}' if opt.costmodel_cstr else ''}"
     exp_name = f"GAMMA_{opt.model}{f'-Lay{opt.singlelayer}' if opt.singlelayer>0 else ''}{f'-nLay{opt.num_layer}' if opt.singlelayer<1 and opt.num_layer>0 else ''}_SL-{opt.slevel_min}-{opt.slevel_max}" \
-               f"{f'_FixCl-{opt.fixedCluster}' if opt.fixedCluster>0 else ''}_F1-{opt.fitness1}_GEN-{ opt.epochs}_POP-{opt.num_pop}_Area-{opt.area_budget}_MaxPEs-{opt.pe_limit}" \
-               f"{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}{f'_L2Size-{opt.l2_size}' if opt.l2_size>0 else ''}" \
-               f"{f'_L1Size-{opt.l1_size}' if opt.l1_size>0 else ''}{'_factorOnly' if opt.use_factor else ''}{f'_CostModelCstr-{opt.costmodel_cstr}' if opt.costmodel_cstr else ''}"
+               f"{f'_FixCl-{opt.fixedCluster}' if opt.fixedCluster>0 else ''}_F1-{opt.fitness1}_GEN-{opt.epochs}_POP-{opt.num_pop}_Area-{opt.area_budget}_MaxPEs-{opt.pe_limit}" \
+               f"{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}{f'_L1-{opt.l1_size}' if opt.l1_size>0 else ''}{f'_L2-{opt.l2_size}' if opt.l2_size>0 else ''}" \
+               f"{'_factorOnly' if opt.use_factor else ''}{'_CIM' if opt.use_cim else ''}{f'_CIMSize-{opt.subarray_size}' if opt.subarray_size>0 else ''}{f'_Stats-{opt.cim_stats_file}' if opt.cim_stats_file else ''}"
     outdir_exp = os.path.join(outdir, exp_name)
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(outdir_exp, exist_ok=True)
