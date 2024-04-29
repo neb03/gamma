@@ -1,0 +1,11 @@
+subarray_read_energy: 22.2278
+subarray_read_latency: 14.9422
+subarray_write_latency: 15300.8
+subarray_write_energy: 1769.47
+subarray_area: 32265.9
+l1_read_energy_per_bit: 1.44481
+l1_write_energy_per_bit: 1.44481
+l1_area: 1265.61
+l2_read_energy_per_bit: 3336.69
+l2_write_energy_per_bit: 64807.8
+l2_area: 151157.0
