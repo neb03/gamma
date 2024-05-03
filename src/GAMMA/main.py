@@ -61,10 +61,9 @@ if __name__ == "__main__":
     #            f"{f'_FixCl-{opt.fixedCluster}' if opt.fixedCluster>0 else ''}_F1-{opt.fitness1}_GEN-{opt.epochs}_POP-{opt.num_pop}_Area-{opt.area_budget}_MaxPEs-{opt.pe_limit}" \
     #            f"{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}{f'_L2Size-{opt.l2_size}' if opt.l2_size>0 else ''}" \
     #            f"{f'_L1Size-{opt.l1_size}' if opt.l1_size>0 else ''}{'_factorOnly' if opt.use_factor else ''}{'_useCIM' if opt.use_cim else ''}{f'_SubarraySize-{opt.subarray_size}' if opt.subarray_size>0 else ''}{f'_CostModelCstr-{opt.costmodel_cstr}' if opt.costmodel_cstr else ''}"
-    exp_name = f"GAMMA_{opt.model}{f'-Lay{opt.singlelayer}' if opt.singlelayer>0 else ''}{f'-nLay{opt.num_layer}' if opt.singlelayer<1 and opt.num_layer>0 else ''}_SL-{opt.slevel_min}-{opt.slevel_max}" \
-               f"{f'_FixCl-{opt.fixedCluster}' if opt.fixedCluster>0 else ''}_F1-{opt.fitness1}_GEN-{opt.epochs}_POP-{opt.num_pop}_Area-{opt.area_budget}_MaxPEs-{opt.pe_limit}" \
-               f"{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}{f'_L1-{opt.l1_size}' if opt.l1_size>0 else ''}{f'_L2-{opt.l2_size}' if opt.l2_size>0 else ''}" \
-               f"{'_factorOnly' if opt.use_factor else ''}{'_CIM' if opt.use_cim else ''}{f'_CIMSize-{opt.subarray_size}' if opt.subarray_size>0 else ''}{f'_Stats-{opt.cim_stats_file}' if opt.cim_stats_file else ''}"
+    exp_name = f"model-{opt.model}_fitness1-{opt.fitness1}_epochs-{opt.epochs}_pop-{opt.num_pop}_maxPEs-{opt.pe_limit}{f'_FixedPE-{opt.num_pe}' if opt.num_pe>0 else ''}" \
+                f"{f'_L1-{opt.l1_size}' if opt.l1_size>0 else ''}{f'_L2-{opt.l2_size}' if opt.l2_size>0 else ''}" \
+                f"{f'_CIMSize-{opt.subarray_size}' if (opt.use_cim and opt.subarray_size>0) else ''}{f'_statsfile-{opt.cim_stats_file}' if opt.cim_stats_file else ''}"
     outdir_exp = os.path.join(outdir, exp_name)
     os.makedirs(outdir, exist_ok=True)
     os.makedirs(outdir_exp, exist_ok=True)

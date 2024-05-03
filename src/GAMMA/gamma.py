@@ -77,7 +77,7 @@ class GAMMA(object):
                     num = stat.split(": ", 1)[1]
                     self.circuit_stats[text] = float(num)
                 print("subarray size: ", self.subarray_size)
-                print(self.cim_stats_file, self.circuit_stats)
+                # print(self.cim_stats_file, self.circuit_stats)
 
     def reset_hw_parm(self, l1_size=None, l2_size=None, num_pe=None, NocBW=None, map_cstr=None, pe_limit=None,area_pebuf_only=None, external_area_model=None, offchipBW=None):
         if l1_size:
@@ -1009,11 +1009,17 @@ class GAMMA(object):
         return area
 
     def compute_area_external(self, num_pe, l1_size, l2_size):
-        MAC_AREA_INT8=282
-        MAC_AREA_INT32=3495
-        BUF_AREA_perbit = 0.086
-        buf_size = l1_size * num_pe + l2_size
-        area = num_pe * MAC_AREA_INT8 + buf_size * BUF_AREA_perbit * 8
+        if (self.use_cim):
+            MAC_AREA_INT8 = self.circuit_stats["subarray_area"]
+            l1_area = self.circuit_stats["l1_area"]
+            l2_area = self.circuit_stats["l2_area"]
+            area = num_pe * MAC_AREA_INT8 + num_pe * l1_area + l2_area
+        else:
+            MAC_AREA_INT8 = (282+36)*0.239 # neurosim SRAM 22nm
+            buf_size = num_pe*l1_size + l2_size
+            MAC_AREA_INT32 = 3495
+            BUF_AREA_perbit = 0.086
+            area = num_pe * MAC_AREA_INT8 + buf_size * BUF_AREA_perbit * 8
         return area
 
     def judge(self):
@@ -1035,44 +1041,14 @@ class GAMMA(object):
             num_macs = self.activity_count["mac_activity"]
 
             n = self.subarray_size
-            subarray_read_energy = self.circuit_stats["subarray_read_energy"]*1E-12*8
-            subarray_read_latency = self.circuit_stats["subarray_read_latency"]*8
-            subarray_write_energy = self.circuit_stats["subarray_write_energy"]*1E-12
-            subarray_write_latency = self.circuit_stats["subarray_write_latency"]
-            l1_read_energy_per_bit = self.circuit_stats["l1_read_energy_per_bit"]*1E-12
-            l1_write_energy_per_bit = self.circuit_stats["l1_write_energy_per_bit"]*1E-12
-            l2_read_energy_per_bit = self.circuit_stats["l2_read_energy_per_bit"]*1E-12
-            l2_write_energy_per_bit = self.circuit_stats["l2_write_energy_per_bit"]*1E-12
-        
-        # if (n == 32): # SRAM 22nm 32x32
-        #     subarray_read_energy = 2.24782E-12*8 #joules, for 8 CIM cycles
-        #     subarray_read_latency = 15.9566*8 #ns or cycles (assuming 1 cycle = 1ns)
-        #     subarray_write_energy = 27.648E-12
-        #     l1_rd_energy_per_bit = 1.44481E-12
-        #     l1_wr_energy_per_bit = 1.44481E-12
-        #     l2_rd_energy_per_bit = 3336.69E-12
-        #     l2_wr_energy_per_bit = 64807.8E-12
-        #     subarray_write_latency = 255.306
-        # elif (n == 64): # SRAM 22nm 64x64
-        #     subarray_read_energy = 3.54159E-12*8 #joules, for 8 CIM cycles
-        #     subarray_write_energy = 110.592E-12
-        #     l1_rd_energy_per_bit = 1.44481E-12
-        #     l1_wr_energy_per_bit = 1.44481E-12
-        #     l2_rd_energy_per_bit = 3336.69E-12
-        #     l2_wr_energy_per_bit = 64807.8E-12
-        #     subarray_read_latency = 14.3869*8 #ns or cycles (assuming 1 cycle = 1ns)
-        #     subarray_write_latency = 920.761
-        # else: # SRAM 22nm 64x64
-        #     subarray_read_energy = 11.9396E-12*8 #joules, for 8 CIM cycles
-        #     subarray_write_energy = 442.368E-12
-        #     l1_rd_energy_per_bit = 1.44481E-12
-        #     l1_wr_energy_per_bit = 1.44481E-12
-        #     l2_rd_energy_per_bit = 3336.69E-12
-        #     l2_wr_energy_per_bit = 64807.8E-12
-        #     subarray_read_latency = 13.5792*8 #ns or cycles (assuming 1 cycle = 1ns)
-        #     subarray_write_latency = 3476.29
-
-        # print("use_cim: ", use_cim, ", subarray_size: ", n)
+            subarray_read_energy = self.circuit_stats["subarray_read_energy"]*1E-12*8 #ns or cycles
+            subarray_read_latency = self.circuit_stats["subarray_read_latency"]*8 #ns or cycles
+            subarray_write_energy = self.circuit_stats["subarray_write_energy"]*1E-9 #nJ
+            subarray_write_latency = self.circuit_stats["subarray_write_latency"] #ns or cycles
+            l1_read_energy_per_bit = self.circuit_stats["l1_read_energy_per_bit"]*1E-9 #nJ
+            l1_write_energy_per_bit = self.circuit_stats["l1_write_energy_per_bit"]*1E-9 #nJ
+            l2_read_energy_per_bit = self.circuit_stats["l2_read_energy_per_bit"]*1E-9 #nJ
+            l2_write_energy_per_bit = self.circuit_stats["l2_write_energy_per_bit"]*1E-9 #nJ
 
         def get_objective(objective):
             values = []

@@ -1,4 +1,4 @@
-subarray_read_energy: 2.01609
+subarray_read_energy: 2.032
 subarray_read_latency: 16.1681
 subarray_write_energy: 102.4
 subarray_write_latency: 258.689
